@@ -63,7 +63,7 @@ const StatsAndSessions = () => {
           duration_minutes,
           notes,
           game:games(name, image_url),
-          players:game_session_players(player_name, score, position, is_winner)
+          players:game_session_players(player_name, score, position, is_winner, is_session_owner)
         `)
         .eq('user_id', user.id)
         .order('played_at', { ascending: false })
@@ -87,7 +87,7 @@ const StatsAndSessions = () => {
           id,
           duration_minutes,
           game:games(name),
-          players:game_session_players(player_name, score, position, is_winner)
+          players:game_session_players(player_name, score, position, is_winner, is_session_owner)
         `)
         .eq('user_id', user.id);
 
@@ -98,10 +98,9 @@ const StatsAndSessions = () => {
       // Calculate total stats
       const totalSessions = sessions.length;
       const totalWins = sessions.reduce((wins, session) => {
-        // For now, we'll need to track user wins differently since we don't store which player is the user
-        // We'll assume the user is among the winners if they logged the session and there are winners
-        const hasWinners = session.players?.some((p: any) => p.is_winner);
-        return wins + (hasWinners ? 1 : 0);
+        // Find the session owner (the user) and check if they won
+        const userPlayer = session.players?.find((p: any) => p.is_session_owner);
+        return wins + (userPlayer?.is_winner ? 1 : 0);
       }, 0);
       
       const avgDuration = sessions.length > 0 
@@ -139,12 +138,11 @@ const StatsAndSessions = () => {
         const gameData = gameStatsMap.get(gameName);
         gameData.total_sessions++;
         
-        // Check if there are any winners in this session
-        const winners = session.players?.filter((p: any) => p.is_winner) || [];
-        if (winners.length > 0) {
+        // Find the session owner (the user) to get their stats
+        const userPlayer = session.players?.find((p: any) => p.is_session_owner);
+        if (userPlayer?.is_winner) {
           gameData.wins++;
-          // Use the first winner's score as representative
-          gameData.total_score += winners[0]?.score || 0;
+          gameData.total_score += userPlayer.score || 0;
         }
       });
 

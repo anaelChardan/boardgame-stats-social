@@ -27,6 +27,7 @@ interface Player {
   score: number;
   position: number;
   isWinner: boolean;
+  isUser?: boolean; // Track if this player represents the logged-in user
 }
 
 const NewGameSession = ({ onClose }: { onClose: () => void }) => {
@@ -257,6 +258,7 @@ const NewGameSession = ({ onClose }: { onClose: () => void }) => {
         score: player.score,
         position: player.position,
         is_winner: player.isWinner,
+        is_session_owner: player.isUser || false,
       }));
 
       const { error: playersError } = await supabase
@@ -406,6 +408,22 @@ const NewGameSession = ({ onClose }: { onClose: () => void }) => {
                     onChange={(e) => updatePlayer(player.id, 'score', parseInt(e.target.value) || 0)}
                     className="w-24"
                   />
+                  <label className="flex items-center space-x-1 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={player.isUser || false}
+                      onChange={(e) => {
+                        // Only one player can be the user
+                        if (e.target.checked) {
+                          // Uncheck all other players first
+                          setPlayers(players.map(p => ({ ...p, isUser: false })));
+                        }
+                        updatePlayer(player.id, 'isUser', e.target.checked);
+                      }}
+                      className="rounded"
+                    />
+                    <span>C'est moi</span>
+                  </label>
                   {player.isWinner && (
                     <Trophy size={20} className="text-yellow-500" />
                   )}

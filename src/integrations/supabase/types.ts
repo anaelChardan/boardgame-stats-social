@@ -80,6 +80,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_session_owner: boolean | null
           is_winner: boolean | null
           player_name: string
           position: number | null
@@ -90,6 +91,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_session_owner?: boolean | null
           is_winner?: boolean | null
           player_name: string
           position?: number | null
@@ -100,6 +102,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_session_owner?: boolean | null
           is_winner?: boolean | null
           player_name?: string
           position?: number | null
