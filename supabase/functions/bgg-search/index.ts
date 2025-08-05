@@ -23,19 +23,59 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 );
 
-function parseXML(xmlString: string): Document {
-  const parser = new DOMParser();
-  return parser.parseFromString(xmlString, 'text/xml');
+// Simple XML parser for Deno environment using regex
+function parseSearchXML(xmlString: string): { id: number; name: string }[] {
+  const games: { id: number; name: string }[] = [];
+  const itemMatches = xmlString.match(/<item[^>]*>[\s\S]*?<\/item>/g);
+  
+  if (itemMatches) {
+    itemMatches.forEach(itemXml => {
+      const idMatch = itemXml.match(/id="(\d+)"/);
+      const nameMatch = itemXml.match(/<name[^>]*value="([^"]*)"[^>]*\/>/);
+      
+      if (idMatch && nameMatch) {
+        games.push({
+          id: parseInt(idMatch[1]),
+          name: nameMatch[1]
+        });
+      }
+    });
+  }
+  
+  return games;
 }
 
-function extractTextContent(element: Element | null): string {
-  return element?.textContent?.trim() || '';
-}
-
-function extractNumberContent(element: Element | null): number | undefined {
-  const text = extractTextContent(element);
-  const num = parseInt(text);
-  return isNaN(num) ? undefined : num;
+function parseDetailsXML(xmlString: string): BoardGame[] {
+  const games: BoardGame[] = [];
+  const itemMatches = xmlString.match(/<item[^>]*type="boardgame"[^>]*>[\s\S]*?<\/item>/g);
+  
+  if (itemMatches) {
+    itemMatches.forEach(itemXml => {
+      const idMatch = itemXml.match(/id="(\d+)"/);
+      const nameMatch = itemXml.match(/<name[^>]*type="primary"[^>]*value="([^"]*)"[^>]*\/>/);
+      const yearMatch = itemXml.match(/<yearpublished[^>]*value="([^"]*)"[^>]*\/>/);
+      const minPlayersMatch = itemXml.match(/<minplayers[^>]*value="([^"]*)"[^>]*\/>/);
+      const maxPlayersMatch = itemXml.match(/<maxplayers[^>]*value="([^"]*)"[^>]*\/>/);
+      const playingTimeMatch = itemXml.match(/<playingtime[^>]*value="([^"]*)"[^>]*\/>/);
+      const imageMatch = itemXml.match(/<image>(.*?)<\/image>/);
+      const descriptionMatch = itemXml.match(/<description>(.*?)<\/description>/);
+      
+      if (idMatch && nameMatch) {
+        games.push({
+          id: parseInt(idMatch[1]),
+          name: nameMatch[1],
+          yearPublished: yearMatch ? parseInt(yearMatch[1]) : undefined,
+          minPlayers: minPlayersMatch ? parseInt(minPlayersMatch[1]) : undefined,
+          maxPlayers: maxPlayersMatch ? parseInt(maxPlayersMatch[1]) : undefined,
+          playingTime: playingTimeMatch ? parseInt(playingTimeMatch[1]) : undefined,
+          image: imageMatch ? imageMatch[1] : undefined,
+          description: descriptionMatch ? descriptionMatch[1] : undefined,
+        });
+      }
+    });
+  }
+  
+  return games;
 }
 
 async function searchBGG(query: string): Promise<BoardGame[]> {
@@ -52,23 +92,15 @@ async function searchBGG(query: string): Promise<BoardGame[]> {
     }
     
     const searchXml = await searchResponse.text();
-    const searchDoc = parseXML(searchXml);
+    const searchResults = parseSearchXML(searchXml);
     
-    // Extract game IDs from search results
-    const items = searchDoc.querySelectorAll('item');
-    const gameIds: number[] = [];
-    
-    for (const item of items) {
-      const id = item.getAttribute('id');
-      if (id && gameIds.length < 10) { // Limit to 10 results
-        gameIds.push(parseInt(id));
-      }
-    }
-    
-    if (gameIds.length === 0) {
+    if (searchResults.length === 0) {
       console.log('No games found in search');
       return [];
     }
+    
+    // Limit to first 10 results
+    const gameIds = searchResults.slice(0, 10).map(game => game.id);
     
     // Step 2: Get detailed information for each game
     const detailsUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${gameIds.join(',')}&stats=1`;
@@ -80,54 +112,7 @@ async function searchBGG(query: string): Promise<BoardGame[]> {
     }
     
     const detailsXml = await detailsResponse.text();
-    const detailsDoc = parseXML(detailsXml);
-    
-    // Parse game details
-    const games: BoardGame[] = [];
-    const gameItems = detailsDoc.querySelectorAll('item[type="boardgame"]');
-    
-    for (const item of gameItems) {
-      const id = parseInt(item.getAttribute('id') || '0');
-      if (!id) continue;
-      
-      // Get primary name
-      const primaryName = item.querySelector('name[type="primary"]')?.getAttribute('value') || '';
-      
-      // Get year published
-      const yearElement = item.querySelector('yearpublished');
-      const yearPublished = extractNumberContent(yearElement);
-      
-      // Get player count
-      const minPlayersElement = item.querySelector('minplayers');
-      const maxPlayersElement = item.querySelector('maxplayers');
-      const minPlayers = extractNumberContent(minPlayersElement);
-      const maxPlayers = extractNumberContent(maxPlayersElement);
-      
-      // Get playing time
-      const playingTimeElement = item.querySelector('playingtime');
-      const playingTime = extractNumberContent(playingTimeElement);
-      
-      // Get image
-      const imageElement = item.querySelector('image');
-      const image = extractTextContent(imageElement);
-      
-      // Get description
-      const descriptionElement = item.querySelector('description');
-      const description = extractTextContent(descriptionElement);
-      
-      if (primaryName) {
-        games.push({
-          id,
-          name: primaryName,
-          yearPublished,
-          minPlayers,
-          maxPlayers,
-          playingTime,
-          image: image || undefined,
-          description: description || undefined,
-        });
-      }
-    }
+    const games = parseDetailsXML(detailsXml);
     
     console.log(`Found ${games.length} games`);
     return games;
