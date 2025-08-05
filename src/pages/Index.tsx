@@ -10,7 +10,9 @@ const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log('Index: Auth state changed', { loading, hasUser: !!user });
     if (!loading && !user) {
+      console.log('Index: Redirecting to auth');
       navigate('/auth');
     }
   }, [user, loading, navigate]);
@@ -71,7 +73,10 @@ const Index = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full">
+              <Button 
+                className="w-full"
+                onClick={() => console.log('Nouvelle partie clicked')}
+              >
                 Nouvelle partie
               </Button>
             </CardContent>
@@ -88,7 +93,11 @@ const Index = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => console.log('Voir mes amis clicked')}
+              >
                 Voir mes amis
               </Button>
             </CardContent>
@@ -105,7 +114,11 @@ const Index = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => console.log('Voir les stats clicked')}
+              >
                 Voir les stats
               </Button>
             </CardContent>
