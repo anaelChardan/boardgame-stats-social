@@ -1,9 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Target, Users, Clock, TrendingUp, Calendar } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Trophy, Target, Users, Clock, TrendingUp, Calendar, Edit2, Trash2, MessageCircle, Save, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from '@/hooks/use-toast';
 
 interface GameSession {
   id: string;
@@ -15,10 +22,22 @@ interface GameSession {
     image_url: string | null;
   };
   players: Array<{
+    id: string;
     player_name: string;
     score: number;
     position: number;
     is_winner: boolean;
+    is_session_owner: boolean;
+  }>;
+  comments?: Array<{
+    id: string;
+    content: string;
+    created_at: string;
+    user_id: string;
+    profiles: {
+      display_name: string | null;
+      username: string | null;
+    };
   }>;
 }
 
@@ -43,6 +62,11 @@ const StatsAndSessions = () => {
     win_rate: 0
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [editingSession, setEditingSession] = useState<GameSession | null>(null);
+  const [commentingSession, setCommentingSession] = useState<GameSession | null>(null);
+  const [newComment, setNewComment] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editDuration, setEditDuration] = useState(0);
 
   useEffect(() => {
     if (user) {
@@ -63,7 +87,8 @@ const StatsAndSessions = () => {
           duration_minutes,
           notes,
           game:games(name, image_url),
-          players:game_session_players(player_name, score, position, is_winner, is_session_owner)
+          players:game_session_players(id, player_name, score, position, is_winner, is_session_owner),
+          comments:comments(id, content, created_at, user_id, profiles:profiles(display_name, username))
         `)
         .eq('user_id', user.id)
         .order('played_at', { ascending: false })
@@ -157,6 +182,107 @@ const StatsAndSessions = () => {
       console.error('Error loading stats:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const deleteSession = async (sessionId: string) => {
+    try {
+      const { error } = await supabase
+        .from('game_sessions')
+        .delete()
+        .eq('id', sessionId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Partie supprimée",
+        description: "La partie a été supprimée avec succès",
+      });
+
+      // Refresh data
+      loadUserSessions();
+      loadUserStats();
+    } catch (error: any) {
+      console.error('Error deleting session:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer la partie",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const startEditSession = (session: GameSession) => {
+    setEditingSession(session);
+    setEditNotes(session.notes || '');
+    setEditDuration(session.duration_minutes);
+  };
+
+  const saveEditSession = async () => {
+    if (!editingSession) return;
+
+    try {
+      const { error } = await supabase
+        .from('game_sessions')
+        .update({
+          notes: editNotes.trim() || null,
+          duration_minutes: editDuration,
+        })
+        .eq('id', editingSession.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Partie modifiée",
+        description: "Les modifications ont été sauvegardées",
+      });
+
+      setEditingSession(null);
+      loadUserSessions();
+    } catch (error: any) {
+      console.error('Error updating session:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier la partie",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const startCommentSession = (session: GameSession) => {
+    setCommentingSession(session);
+    setNewComment('');
+  };
+
+  const saveComment = async () => {
+    if (!commentingSession || !newComment.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from('comments')
+        .insert({
+          session_id: commentingSession.id,
+          user_id: user!.id,
+          content: newComment.trim(),
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Commentaire ajouté",
+        description: "Votre commentaire a été publié",
+      });
+
+      setCommentingSession(null);
+      setNewComment('');
+      loadUserSessions(); // Refresh to show new comment
+    } catch (error: any) {
+      console.error('Error adding comment:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter le commentaire",
+        variant: "destructive",
+      });
     }
   };
 
@@ -284,7 +410,7 @@ const StatsAndSessions = () => {
                 <Card key={session.id} className="border-l-4 border-l-primary">
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start">
-                      <div>
+                      <div className="flex-1">
                         <h4 className="font-medium">{session.game?.name || 'Jeu inconnu'}</h4>
                         <p className="text-sm text-muted-foreground">
                           {formatDate(session.played_at)} • {session.duration_minutes} min
@@ -298,6 +424,7 @@ const StatsAndSessions = () => {
                                 className="text-xs"
                               >
                                 {player.is_winner && <Trophy size={12} className="mr-1" />}
+                                {player.is_session_owner && "👤 "}
                                 {player.player_name} ({player.score}pts)
                               </Badge>
                             ))}
@@ -308,6 +435,61 @@ const StatsAndSessions = () => {
                             "{session.notes}"
                           </p>
                         )}
+                        {session.comments && session.comments.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            <h5 className="text-sm font-medium flex items-center">
+                              <MessageCircle size={14} className="mr-1" />
+                              Commentaires ({session.comments.length})
+                            </h5>
+                            {session.comments.map((comment) => (
+                              <div key={comment.id} className="bg-muted p-2 rounded text-sm">
+                                <p className="text-muted-foreground mb-1">
+                                  <strong>{comment.profiles?.display_name || comment.profiles?.username || 'Utilisateur'}</strong>
+                                  {' • '}
+                                  {formatDate(comment.created_at)}
+                                </p>
+                                <p>{comment.content}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex space-x-1 ml-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => startCommentSession(session)}
+                        >
+                          <MessageCircle size={14} />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => startEditSession(session)}
+                        >
+                          <Edit2 size={14} />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <Trash2 size={14} />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Supprimer la partie</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Êtes-vous sûr de vouloir supprimer cette partie ? Cette action ne peut pas être annulée.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Annuler</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteSession(session.id)}>
+                                Supprimer
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   </CardContent>
@@ -317,6 +499,78 @@ const StatsAndSessions = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Session Dialog */}
+      <Dialog open={!!editingSession} onOpenChange={() => setEditingSession(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifier la partie</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-duration">Durée (minutes)</Label>
+              <Input
+                id="edit-duration"
+                type="number"
+                value={editDuration}
+                onChange={(e) => setEditDuration(parseInt(e.target.value) || 0)}
+                min="1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-notes">Notes</Label>
+              <Textarea
+                id="edit-notes"
+                placeholder="Commentaires sur la partie..."
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setEditingSession(null)}>
+                <X size={16} className="mr-2" />
+                Annuler
+              </Button>
+              <Button onClick={saveEditSession}>
+                <Save size={16} className="mr-2" />
+                Sauvegarder
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Comment Dialog */}
+      <Dialog open={!!commentingSession} onOpenChange={() => setCommentingSession(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajouter un commentaire</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">
+                Commentaire pour la partie de <strong>{commentingSession?.game?.name}</strong>
+              </p>
+              <Textarea
+                placeholder="Votre commentaire..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setCommentingSession(null)}>
+                <X size={16} className="mr-2" />
+                Annuler
+              </Button>
+              <Button onClick={saveComment} disabled={!newComment.trim()}>
+                <MessageCircle size={16} className="mr-2" />
+                Publier
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
