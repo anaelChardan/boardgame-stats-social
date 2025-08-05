@@ -453,21 +453,16 @@ const StatsAndSessions = () => {
                         <p className="text-sm text-muted-foreground">
                           {formatDate(session.played_at)} • {session.duration_minutes} min
                         </p>
-                        {session.players && session.players.length > 0 && (
+                         {session.players && session.players.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1">
                             {session.players.map((player, idx) => {
-                              // Find the highest position (last place) for the loser indicator
-                              const maxPosition = Math.max(...session.players.map(p => p.position));
-                              const isLoser = player.position === maxPosition && session.players.length > 1;
-                              
                               return (
                                 <Badge 
                                   key={idx} 
                                   variant={player.is_winner ? "default" : "secondary"}
                                   className="text-xs"
                                 >
-                                  {player.is_winner && <Trophy size={12} className="mr-1" />}
-                                  {isLoser && <span className="mr-1">💩</span>}
+                                  {player.is_winner ? "🏆" : "💩"} 
                                   {player.is_session_owner && "👤 "}
                                   {player.player_name} ({player.score}pts)
                                 </Badge>
@@ -593,10 +588,9 @@ const StatsAndSessions = () => {
                         onChange={(e) => updateEditPlayer(player.id, 'score', parseInt(e.target.value) || 0)}
                         className="w-24"
                       />
-                      {player.is_winner && (
-                        <Trophy size={20} className="text-yellow-500" />
-                      )}
-                      {isLoser && (
+                      {player.is_winner ? (
+                        <span className="text-lg">🏆</span>
+                      ) : (
                         <span className="text-lg">💩</span>
                       )}
                       {player.is_session_owner && (
