@@ -244,9 +244,22 @@ const NewGameSession = ({ onClose }: { onClose: () => void }) => {
   };
 
   const updatePlayer = (playerId: string, field: keyof Player, value: any) => {
-    setPlayers(players.map(p => 
+    const updatedPlayers = players.map(p => 
       p.id === playerId ? { ...p, [field]: value } : p
-    ));
+    );
+    
+    // Auto-calculate positions when score changes
+    if (field === 'score') {
+      const sorted = [...updatedPlayers].sort((a, b) => b.score - a.score);
+      const withPositions = updatedPlayers.map(player => {
+        const position = sorted.findIndex(p => p.id === player.id) + 1;
+        const isWinner = position === 1;
+        return { ...player, position, isWinner };
+      });
+      setPlayers(withPositions);
+    } else {
+      setPlayers(updatedPlayers);
+    }
   };
 
   const calculatePositions = () => {

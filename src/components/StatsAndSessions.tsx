@@ -224,9 +224,22 @@ const StatsAndSessions = () => {
   };
 
   const updateEditPlayer = (playerId: string, field: 'score' | 'player_name', value: any) => {
-    setEditPlayers(editPlayers.map(p => 
+    const updatedPlayers = editPlayers.map(p => 
       p.id === playerId ? { ...p, [field]: value } : p
-    ));
+    );
+    
+    // Auto-calculate positions when score changes
+    if (field === 'score') {
+      const sorted = [...updatedPlayers].sort((a, b) => b.score - a.score);
+      const withPositions = updatedPlayers.map(player => {
+        const position = sorted.findIndex(p => p.id === player.id) + 1;
+        const isWinner = position === 1;
+        return { ...player, position, is_winner: isWinner };
+      });
+      setEditPlayers(withPositions);
+    } else {
+      setEditPlayers(updatedPlayers);
+    }
   };
 
   const calculateEditPositions = () => {
