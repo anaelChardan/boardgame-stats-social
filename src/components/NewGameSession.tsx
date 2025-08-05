@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Search, Plus, Minus, Trophy, Users } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,91 +36,120 @@ const NewGameSession = ({ onClose }: { onClose: () => void }) => {
   const [selectedGame, setSelectedGame] = useState<BoardGame | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
   const [players, setPlayers] = useState<Player[]>([
     { id: '1', name: '', score: 0, position: 1, isWinner: false }
   ]);
   const [duration, setDuration] = useState<number>(60);
   const [notes, setNotes] = useState('');
 
-  const searchBoardGames = async (query: string) => {
-    if (!query.trim()) return;
-    
-    setIsSearching(true);
-    try {
-      // Create a simple mock search for now since CORS proxy isn't working
-      // In a real app, you'd implement this via an edge function
-      const mockGames: BoardGame[] = [
-        {
-          id: 167791,
-          name: "Terraforming Mars",
-          yearPublished: 2016,
-          minPlayers: 1,
-          maxPlayers: 5,
-          playingTime: 120
-        },
-        {
-          id: 224517,
-          name: "Brass: Birmingham", 
-          yearPublished: 2018,
-          minPlayers: 2,
-          maxPlayers: 4,
-          playingTime: 180
-        },
-        {
-          id: 161936,
-          name: "Pandemic Legacy: Season 1",
-          yearPublished: 2015,
-          minPlayers: 2,
-          maxPlayers: 4,
-          playingTime: 60
-        },
-        {
-          id: 174430,
-          name: "Gloomhaven",
-          yearPublished: 2017,
-          minPlayers: 1,
-          maxPlayers: 4,
-          playingTime: 120
-        },
-        {
-          id: 12333,
-          name: "Twilight Struggle",
-          yearPublished: 2005,
-          minPlayers: 2,
-          maxPlayers: 2,
-          playingTime: 180
-        }
-      ];
-      
-      // Filter games based on search query
-      const filteredGames = mockGames.filter(game => 
-        game.name.toLowerCase().includes(query.toLowerCase())
-      );
-      
-      setSearchResults(filteredGames);
-      
-      // Show a note about the temporary search
-      if (filteredGames.length === 0) {
-        toast({
-          title: "Recherche temporaire",
-          description: "Recherche limitée pour la démo. Essayez 'Terraforming', 'Brass', 'Pandemic', 'Gloomhaven', ou 'Twilight'",
-        });
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-      toast({
-        title: "Erreur de recherche",
-        description: "Impossible de rechercher les jeux pour le moment",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSearching(false);
+  const mockGames: BoardGame[] = [
+    {
+      id: 167791,
+      name: "Terraforming Mars",
+      yearPublished: 2016,
+      minPlayers: 1,
+      maxPlayers: 5,
+      playingTime: 120
+    },
+    {
+      id: 224517,
+      name: "Brass: Birmingham", 
+      yearPublished: 2018,
+      minPlayers: 2,
+      maxPlayers: 4,
+      playingTime: 180
+    },
+    {
+      id: 161936,
+      name: "Pandemic Legacy: Season 1",
+      yearPublished: 2015,
+      minPlayers: 2,
+      maxPlayers: 4,
+      playingTime: 60
+    },
+    {
+      id: 174430,
+      name: "Gloomhaven",
+      yearPublished: 2017,
+      minPlayers: 1,
+      maxPlayers: 4,
+      playingTime: 120
+    },
+    {
+      id: 12333,
+      name: "Twilight Struggle",
+      yearPublished: 2005,
+      minPlayers: 2,
+      maxPlayers: 2,
+      playingTime: 180
+    },
+    {
+      id: 9209,
+      name: "Ticket to Ride",
+      yearPublished: 2004,
+      minPlayers: 2,
+      maxPlayers: 5,
+      playingTime: 60
+    },
+    {
+      id: 13,
+      name: "Catan",
+      yearPublished: 1995,
+      minPlayers: 3,
+      maxPlayers: 4,
+      playingTime: 75
+    },
+    {
+      id: 220308,
+      name: "Gaia Project",
+      yearPublished: 2017,
+      minPlayers: 1,
+      maxPlayers: 4,
+      playingTime: 150
     }
+  ];
+
+  const searchBoardGames = (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      setShowAutocomplete(false);
+      return;
+    }
+    
+    // Filter games based on search query
+    const filteredGames = mockGames.filter(game => 
+      game.name.toLowerCase().includes(query.toLowerCase())
+    );
+    
+    setSearchResults(filteredGames);
+    setShowAutocomplete(true);
   };
+
+  // Handle input changes with real-time search
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    searchBoardGames(value);
+  };
+
+  // Handle clicking outside to close autocomplete
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowAutocomplete(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const selectGame = async (game: BoardGame) => {
     setSelectedGame(game);
     setSearchResults([]);
+    setShowAutocomplete(false);
+    setSearchTerm('');
     
     // For the demo, just use the game data we already have
     // In a real implementation, you'd fetch more details from BGG API via edge function
@@ -267,45 +297,62 @@ const NewGameSession = ({ onClose }: { onClose: () => void }) => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex space-x-2">
-              <Input
-                placeholder="Nom du jeu..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && searchBoardGames(searchTerm)}
-              />
-              <Button 
-                onClick={() => searchBoardGames(searchTerm)}
-                disabled={isSearching || !searchTerm.trim()}
-              >
-                {isSearching ? 'Recherche...' : 'Rechercher'}
-              </Button>
-            </div>
-
-            {searchResults.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="font-medium">Résultats de recherche :</h3>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {searchResults.map((game) => (
-                    <Card key={game.id} className="cursor-pointer hover:bg-muted" onClick={() => selectGame(game)}>
-                      <CardContent className="p-3">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h4 className="font-medium">{game.name}</h4>
-                            {game.yearPublished && (
-                              <p className="text-sm text-muted-foreground">({game.yearPublished})</p>
-                            )}
-                          </div>
-                          <Button size="sm" variant="outline">
-                            Sélectionner
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+            <div className="relative" ref={searchRef}>
+              <div className="flex items-center space-x-2">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground z-10" />
+                <Input
+                  placeholder="Tapez pour rechercher un jeu..."
+                  value={searchTerm}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onFocus={() => searchTerm && setShowAutocomplete(true)}
+                  className="pl-10"
+                />
               </div>
-            )}
+
+              {showAutocomplete && searchResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-50 mt-1">
+                  <Command className="rounded-lg border shadow-md bg-popover">
+                    <CommandList className="max-h-60">
+                      <CommandGroup>
+                        {searchResults.map((game) => (
+                          <CommandItem
+                            key={game.id}
+                            value={game.name}
+                            onSelect={() => selectGame(game)}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <div className="flex flex-col">
+                                <span className="font-medium">{game.name}</span>
+                                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                                  {game.yearPublished && (
+                                    <span>({game.yearPublished})</span>
+                                  )}
+                                  {game.minPlayers && game.maxPlayers && (
+                                    <span>
+                                      <Users size={12} className="inline mr-1" />
+                                      {game.minPlayers}-{game.maxPlayers}
+                                    </span>
+                                  )}
+                                  {game.playingTime && (
+                                    <span>{game.playingTime}min</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                      {searchResults.length === 0 && searchTerm && (
+                        <CommandEmpty>
+                          Aucun jeu trouvé. Essayez "Terraforming", "Brass", "Pandemic", "Gloomhaven", ou "Twilight".
+                        </CommandEmpty>
+                      )}
+                    </CommandList>
+                  </Command>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       ) : (
