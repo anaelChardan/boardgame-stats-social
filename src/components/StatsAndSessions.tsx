@@ -98,8 +98,10 @@ const StatsAndSessions = () => {
       // Calculate total stats
       const totalSessions = sessions.length;
       const totalWins = sessions.reduce((wins, session) => {
-        const userPlayer = session.players?.find((p: any) => p.is_winner && p.player_name);
-        return wins + (userPlayer ? 1 : 0);
+        // For now, we'll need to track user wins differently since we don't store which player is the user
+        // We'll assume the user is among the winners if they logged the session and there are winners
+        const hasWinners = session.players?.some((p: any) => p.is_winner);
+        return wins + (hasWinners ? 1 : 0);
       }, 0);
       
       const avgDuration = sessions.length > 0 
@@ -137,10 +139,12 @@ const StatsAndSessions = () => {
         const gameData = gameStatsMap.get(gameName);
         gameData.total_sessions++;
         
-        const userPlayer = session.players?.find((p: any) => p.is_winner && p.player_name);
-        if (userPlayer) {
+        // Check if there are any winners in this session
+        const winners = session.players?.filter((p: any) => p.is_winner) || [];
+        if (winners.length > 0) {
           gameData.wins++;
-          gameData.total_score += userPlayer.score || 0;
+          // Use the first winner's score as representative
+          gameData.total_score += winners[0]?.score || 0;
         }
       });
 
