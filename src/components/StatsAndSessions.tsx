@@ -455,17 +455,24 @@ const StatsAndSessions = () => {
                         </p>
                         {session.players && session.players.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1">
-                            {session.players.map((player, idx) => (
-                              <Badge 
-                                key={idx} 
-                                variant={player.is_winner ? "default" : "secondary"}
-                                className="text-xs"
-                              >
-                                {player.is_winner && <Trophy size={12} className="mr-1" />}
-                                {player.is_session_owner && "👤 "}
-                                {player.player_name} ({player.score}pts)
-                              </Badge>
-                            ))}
+                            {session.players.map((player, idx) => {
+                              // Find the highest position (last place) for the loser indicator
+                              const maxPosition = Math.max(...session.players.map(p => p.position));
+                              const isLoser = player.position === maxPosition && session.players.length > 1;
+                              
+                              return (
+                                <Badge 
+                                  key={idx} 
+                                  variant={player.is_winner ? "default" : "secondary"}
+                                  className="text-xs"
+                                >
+                                  {player.is_winner && <Trophy size={12} className="mr-1" />}
+                                  {isLoser && <span className="mr-1">💩</span>}
+                                  {player.is_session_owner && "👤 "}
+                                  {player.player_name} ({player.score}pts)
+                                </Badge>
+                              );
+                            })}
                           </div>
                         )}
                         {session.notes && (
@@ -567,28 +574,37 @@ const StatsAndSessions = () => {
             <div>
               <Label>Joueurs et scores</Label>
               <div className="space-y-2 mt-2">
-                {editPlayers.map((player, index) => (
-                  <div key={player.id} className="flex items-center space-x-2">
-                    <Input
-                      placeholder={`Joueur ${index + 1}`}
-                      value={player.player_name}
-                      onChange={(e) => updateEditPlayer(player.id, 'player_name', e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Score"
-                      value={player.score || ''}
-                      onChange={(e) => updateEditPlayer(player.id, 'score', parseInt(e.target.value) || 0)}
-                      className="w-24"
-                    />
-                    {player.is_winner && (
-                      <Trophy size={20} className="text-yellow-500" />
-                    )}
-                    {player.is_session_owner && (
-                      <span className="text-xs text-muted-foreground">👤</span>
-                    )}
-                  </div>
-                ))}
+                {editPlayers.map((player, index) => {
+                  // Find the highest position (last place) for the loser indicator
+                  const maxPosition = Math.max(...editPlayers.map(p => p.position));
+                  const isLoser = player.position === maxPosition && editPlayers.length > 1;
+                  
+                  return (
+                    <div key={player.id} className="flex items-center space-x-2">
+                      <Input
+                        placeholder={`Joueur ${index + 1}`}
+                        value={player.player_name}
+                        onChange={(e) => updateEditPlayer(player.id, 'player_name', e.target.value)}
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Score"
+                        value={player.score || ''}
+                        onChange={(e) => updateEditPlayer(player.id, 'score', parseInt(e.target.value) || 0)}
+                        className="w-24"
+                      />
+                      {player.is_winner && (
+                        <Trophy size={20} className="text-yellow-500" />
+                      )}
+                      {isLoser && (
+                        <span className="text-lg">💩</span>
+                      )}
+                      {player.is_session_owner && (
+                        <span className="text-xs text-muted-foreground">👤</span>
+                      )}
+                    </div>
+                  );
+                })}
                 <Button variant="outline" size="sm" onClick={calculateEditPositions}>
                   Recalculer les positions
                 </Button>
