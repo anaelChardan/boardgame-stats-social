@@ -38,6 +38,7 @@ const NewGameSession = ({ onClose }: { onClose: () => void }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const [players, setPlayers] = useState<Player[]>([
     { id: '1', name: '', score: 0, position: 1, isWinner: false }
@@ -112,26 +113,85 @@ const NewGameSession = ({ onClose }: { onClose: () => void }) => {
     }
   ];
 
-  const searchBoardGames = (query: string) => {
+  const searchBoardGames = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
       setShowAutocomplete(false);
       return;
     }
     
-    // Filter games based on search query
-    const filteredGames = mockGames.filter(game => 
-      game.name.toLowerCase().includes(query.toLowerCase())
-    );
-    
-    setSearchResults(filteredGames);
-    setShowAutocomplete(true);
+    setIsSearching(true);
+    try {
+      console.log(`Searching for: ${query}`);
+      
+      // Call our edge function to search BGG API
+      const { data, error } = await supabase.functions.invoke('bgg-search', {
+        body: { query: query.trim() }
+      });
+
+      if (error) {
+        console.error('BGG search error:', error);
+        throw new Error(error.message || 'Erreur de recherche BGG');
+      }
+
+      if (!data || !data.games) {
+        console.error('Invalid response from BGG search:', data);
+        throw new Error('Réponse invalide du serveur');
+      }
+
+      console.log(`Found ${data.games.length} games from BGG`);
+      
+      // Convert BGG response to our format
+      const bggGames: BoardGame[] = data.games.map((game: any) => ({
+        id: game.id,
+        name: game.name,
+        yearPublished: game.yearPublished,
+        minPlayers: game.minPlayers,
+        maxPlayers: game.maxPlayers,
+        playingTime: game.playingTime,
+        image: game.image,
+        internalId: game.internalId,
+      }));
+      
+      setSearchResults(bggGames);
+      setShowAutocomplete(true);
+      
+    } catch (error: any) {
+      console.error('Search error:', error);
+      
+      // Fallback to mock games if BGG fails
+      console.log('Falling back to mock games due to error:', error.message);
+      const filteredGames = mockGames.filter(game => 
+        game.name.toLowerCase().includes(query.toLowerCase())
+      );
+      
+      setSearchResults(filteredGames);
+      setShowAutocomplete(true);
+      
+      toast({
+        title: "Recherche BGG échouée",
+        description: `Utilisation des jeux de test. Erreur: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   // Handle input changes with real-time search
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    searchBoardGames(value);
+    
+    // Debounce the search to avoid too many API calls
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    const timeout = setTimeout(() => {
+      searchBoardGames(value);
+    }, 500);
+    
+    setSearchTimeout(timeout);
   };
 
   // Handle clicking outside to close autocomplete
@@ -143,8 +203,14 @@ const NewGameSession = ({ onClose }: { onClose: () => void }) => {
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      // Cleanup timeout on unmount
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+    };
+  }, [searchTimeout]);
 
   const selectGame = async (game: BoardGame) => {
     setSelectedGame(game);
@@ -210,31 +276,42 @@ const NewGameSession = ({ onClose }: { onClose: () => void }) => {
     try {
       // First, save or get the game
       let gameId: string;
-      const { data: existingGame } = await supabase
-        .from('games')
-        .select('id')
-        .eq('bgg_id', selectedGame.id)
-        .single();
-
-      if (existingGame) {
-        gameId = existingGame.id;
+      
+      // Check if we have an internal ID from BGG search
+      if ((selectedGame as any).internalId) {
+        gameId = (selectedGame as any).internalId;
+        console.log(`Using existing game ID: ${gameId}`);
       } else {
-        const { data: newGame, error: gameError } = await supabase
+        // Fallback: check if game exists by BGG ID
+        const { data: existingGame } = await supabase
           .from('games')
-          .insert({
-            bgg_id: selectedGame.id,
-            name: selectedGame.name,
-            min_players: selectedGame.minPlayers,
-            max_players: selectedGame.maxPlayers,
-            playing_time: selectedGame.playingTime,
-            image_url: selectedGame.image,
-            year_published: selectedGame.yearPublished,
-          })
           .select('id')
+          .eq('bgg_id', selectedGame.id)
           .single();
 
-        if (gameError) throw gameError;
-        gameId = newGame.id;
+        if (existingGame) {
+          gameId = existingGame.id;
+          console.log(`Found existing game by BGG ID: ${gameId}`);
+        } else {
+          // Create new game (fallback for mock games)
+          const { data: newGame, error: gameError } = await supabase
+            .from('games')
+            .insert({
+              bgg_id: selectedGame.id,
+              name: selectedGame.name,
+              min_players: selectedGame.minPlayers,
+              max_players: selectedGame.maxPlayers,
+              playing_time: selectedGame.playingTime,
+              image_url: selectedGame.image,
+              year_published: selectedGame.yearPublished,
+            })
+            .select('id')
+            .single();
+
+          if (gameError) throw gameError;
+          gameId = newGame.id;
+          console.log(`Created new game: ${gameId}`);
+        }
       }
 
       // Create the game session
