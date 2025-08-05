@@ -34,10 +34,6 @@ interface GameSession {
     content: string;
     created_at: string;
     user_id: string;
-    profiles: {
-      display_name: string | null;
-      username: string | null;
-    };
   }>;
 }
 
@@ -88,7 +84,7 @@ const StatsAndSessions = () => {
           notes,
           game:games(name, image_url),
           players:game_session_players(id, player_name, score, position, is_winner, is_session_owner),
-          comments:comments(id, content, created_at, user_id, profiles:profiles(display_name, username))
+          comments:comments(id, content, created_at, user_id)
         `)
         .eq('user_id', user.id)
         .order('played_at', { ascending: false })
@@ -444,7 +440,7 @@ const StatsAndSessions = () => {
                             {session.comments.map((comment) => (
                               <div key={comment.id} className="bg-muted p-2 rounded text-sm">
                                 <p className="text-muted-foreground mb-1">
-                                  <strong>{comment.profiles?.display_name || comment.profiles?.username || 'Utilisateur'}</strong>
+                                  <strong>Utilisateur</strong>
                                   {' • '}
                                   {formatDate(comment.created_at)}
                                 </p>
