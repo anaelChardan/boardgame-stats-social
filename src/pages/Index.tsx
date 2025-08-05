@@ -1,13 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Dice6, Users, BarChart3, Trophy } from 'lucide-react';
+import NewGameSession from '@/components/NewGameSession';
+import FriendsManagement from '@/components/FriendsManagement';
 
 const Index = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
+  const [showNewGame, setShowNewGame] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
 
   useEffect(() => {
     console.log('Index: Auth state changed', { loading, hasUser: !!user });
@@ -75,7 +80,7 @@ const Index = () => {
             <CardContent>
               <Button 
                 className="w-full"
-                onClick={() => console.log('Nouvelle partie clicked')}
+                onClick={() => setShowNewGame(true)}
               >
                 Nouvelle partie
               </Button>
@@ -96,7 +101,7 @@ const Index = () => {
               <Button 
                 variant="outline" 
                 className="w-full"
-                onClick={() => console.log('Voir mes amis clicked')}
+                onClick={() => setShowFriends(true)}
               >
                 Voir mes amis
               </Button>
@@ -143,6 +148,25 @@ const Index = () => {
           </CardContent>
         </Card>
       </main>
+
+      {/* Dialogs */}
+      <Dialog open={showNewGame} onOpenChange={setShowNewGame}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nouvelle partie</DialogTitle>
+          </DialogHeader>
+          <NewGameSession onClose={() => setShowNewGame(false)} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showFriends} onOpenChange={setShowFriends}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gestion des amis</DialogTitle>
+          </DialogHeader>
+          <FriendsManagement />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
