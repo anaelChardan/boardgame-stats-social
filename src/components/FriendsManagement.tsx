@@ -44,21 +44,35 @@ const FriendsManagement = () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
+      // Get friends and then fetch their profiles separately
+      const { data: friendsData, error: friendsError } = await supabase
         .from('friends')
-        .select(`
-          id,
-          user_id,
-          friend_id,
-          status,
-          created_at,
-          friend_profile:profiles(id, user_id, username, display_name, avatar_url)
-        `)
+        .select('*')
         .eq('user_id', user.id)
         .eq('status', 'accepted');
 
-      if (error) throw error;
-      setFriends((data as any) || []);
+      if (friendsError) throw friendsError;
+
+      // Fetch profiles for each friend
+      if (friendsData && friendsData.length > 0) {
+        const friendIds = friendsData.map(f => f.friend_id);
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('user_id', friendIds);
+
+        if (profilesError) throw profilesError;
+
+        // Combine the data
+        const friendsWithProfiles = friendsData.map(friend => ({
+          ...friend,
+          friend_profile: profilesData?.find(p => p.user_id === friend.friend_id) || null
+        }));
+
+        setFriends(friendsWithProfiles as any);
+      } else {
+        setFriends([]);
+      }
     } catch (error: any) {
       console.error('Error loading friends:', error);
       toast({
@@ -76,21 +90,34 @@ const FriendsManagement = () => {
 
     try {
       // Get pending requests sent to me
-      const { data, error } = await supabase
+      const { data: requestsData, error: requestsError } = await supabase
         .from('friends')
-        .select(`
-          id,
-          user_id,
-          friend_id,
-          status,
-          created_at,
-          friend_profile:profiles(id, user_id, username, display_name, avatar_url)
-        `)
+        .select('*')
         .eq('friend_id', user.id)
         .eq('status', 'pending');
 
-      if (error) throw error;
-      setPendingRequests((data as any) || []);
+      if (requestsError) throw requestsError;
+
+      // Fetch profiles for each requester
+      if (requestsData && requestsData.length > 0) {
+        const requesterIds = requestsData.map(r => r.user_id);
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('user_id', requesterIds);
+
+        if (profilesError) throw profilesError;
+
+        // Combine the data
+        const requestsWithProfiles = requestsData.map(request => ({
+          ...request,
+          friend_profile: profilesData?.find(p => p.user_id === request.user_id) || null
+        }));
+
+        setPendingRequests(requestsWithProfiles as any);
+      } else {
+        setPendingRequests([]);
+      }
     } catch (error: any) {
       console.error('Error loading pending requests:', error);
     }

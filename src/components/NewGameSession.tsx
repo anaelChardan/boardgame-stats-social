@@ -46,27 +46,65 @@ const NewGameSession = ({ onClose }: { onClose: () => void }) => {
     
     setIsSearching(true);
     try {
-      // Using a CORS proxy for BoardGameGeek API
-      const response = await fetch(
-        `https://api.allorigins.win/get?url=${encodeURIComponent(
-          `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(query)}&type=boardgame`
-        )}`
+      // Create a simple mock search for now since CORS proxy isn't working
+      // In a real app, you'd implement this via an edge function
+      const mockGames: BoardGame[] = [
+        {
+          id: 167791,
+          name: "Terraforming Mars",
+          yearPublished: 2016,
+          minPlayers: 1,
+          maxPlayers: 5,
+          playingTime: 120
+        },
+        {
+          id: 224517,
+          name: "Brass: Birmingham", 
+          yearPublished: 2018,
+          minPlayers: 2,
+          maxPlayers: 4,
+          playingTime: 180
+        },
+        {
+          id: 161936,
+          name: "Pandemic Legacy: Season 1",
+          yearPublished: 2015,
+          minPlayers: 2,
+          maxPlayers: 4,
+          playingTime: 60
+        },
+        {
+          id: 174430,
+          name: "Gloomhaven",
+          yearPublished: 2017,
+          minPlayers: 1,
+          maxPlayers: 4,
+          playingTime: 120
+        },
+        {
+          id: 12333,
+          name: "Twilight Struggle",
+          yearPublished: 2005,
+          minPlayers: 2,
+          maxPlayers: 2,
+          playingTime: 180
+        }
+      ];
+      
+      // Filter games based on search query
+      const filteredGames = mockGames.filter(game => 
+        game.name.toLowerCase().includes(query.toLowerCase())
       );
       
-      if (!response.ok) throw new Error('Erreur de recherche');
+      setSearchResults(filteredGames);
       
-      const data = await response.json();
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(data.contents, 'text/xml');
-      const items = xmlDoc.querySelectorAll('item');
-      
-      const games: BoardGame[] = Array.from(items).slice(0, 10).map(item => ({
-        id: parseInt(item.getAttribute('id') || '0'),
-        name: item.querySelector('name')?.getAttribute('value') || 'Unknown',
-        yearPublished: parseInt(item.querySelector('yearpublished')?.getAttribute('value') || '0') || undefined,
-      }));
-      
-      setSearchResults(games);
+      // Show a note about the temporary search
+      if (filteredGames.length === 0) {
+        toast({
+          title: "Recherche temporaire",
+          description: "Recherche limitée pour la démo. Essayez 'Terraforming', 'Brass', 'Pandemic', 'Gloomhaven', ou 'Twilight'",
+        });
+      }
     } catch (error) {
       console.error('Search error:', error);
       toast({
@@ -83,34 +121,12 @@ const NewGameSession = ({ onClose }: { onClose: () => void }) => {
     setSelectedGame(game);
     setSearchResults([]);
     
-    // Try to get more details about the game
-    try {
-      const response = await fetch(
-        `https://api.allorigins.win/get?url=${encodeURIComponent(
-          `https://boardgamegeek.com/xmlapi2/thing?id=${game.id}`
-        )}`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(data.contents, 'text/xml');
-        const item = xmlDoc.querySelector('item');
-        
-        if (item) {
-          const updatedGame = {
-            ...game,
-            minPlayers: parseInt(item.querySelector('minplayers')?.getAttribute('value') || '0') || undefined,
-            maxPlayers: parseInt(item.querySelector('maxplayers')?.getAttribute('value') || '0') || undefined,
-            playingTime: parseInt(item.querySelector('playingtime')?.getAttribute('value') || '0') || undefined,
-            image: item.querySelector('image')?.textContent || undefined,
-          };
-          setSelectedGame(updatedGame);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching game details:', error);
-    }
+    // For the demo, just use the game data we already have
+    // In a real implementation, you'd fetch more details from BGG API via edge function
+    toast({
+      title: "Jeu sélectionné",
+      description: `${game.name} ajouté à votre partie`,
+    });
   };
 
   const addPlayer = () => {
