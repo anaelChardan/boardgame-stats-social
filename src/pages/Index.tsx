@@ -7,12 +7,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Dice6, Users, BarChart3, Trophy } from 'lucide-react';
 import NewGameSession from '@/components/NewGameSession';
 import FriendsManagement from '@/components/FriendsManagement';
+import StatsAndSessions from '@/components/StatsAndSessions';
 
 const Index = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const [showNewGame, setShowNewGame] = useState(false);
   const [showFriends, setShowFriends] = useState(false);
+  const [showStats, setShowStats] = useState(false);
 
   useEffect(() => {
     console.log('Index: Auth state changed', { loading, hasUser: !!user });
@@ -122,7 +124,7 @@ const Index = () => {
               <Button 
                 variant="outline" 
                 className="w-full"
-                onClick={() => console.log('Voir les stats clicked')}
+                onClick={() => setShowStats(true)}
               >
                 Voir les stats
               </Button>
@@ -141,10 +143,7 @@ const Index = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <p>Aucune activité récente</p>
-              <p className="text-sm mt-2">Commencez par logger votre première partie !</p>
-            </div>
+            <StatsAndSessions />
           </CardContent>
         </Card>
       </main>
@@ -165,6 +164,15 @@ const Index = () => {
             <DialogTitle>Gestion des amis</DialogTitle>
           </DialogHeader>
           <FriendsManagement />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showStats} onOpenChange={setShowStats}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Mes statistiques et parties</DialogTitle>
+          </DialogHeader>
+          <StatsAndSessions />
         </DialogContent>
       </Dialog>
     </div>
