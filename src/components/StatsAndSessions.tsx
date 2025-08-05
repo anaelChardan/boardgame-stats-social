@@ -63,6 +63,14 @@ const StatsAndSessions = () => {
   const [newComment, setNewComment] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editDuration, setEditDuration] = useState(0);
+  const [editPlayers, setEditPlayers] = useState<Array<{
+    id: string;
+    player_name: string;
+    score: number;
+    position: number;
+    is_winner: boolean;
+    is_session_owner: boolean;
+  }>>([]);
 
   useEffect(() => {
     if (user) {
@@ -212,13 +220,31 @@ const StatsAndSessions = () => {
     setEditingSession(session);
     setEditNotes(session.notes || '');
     setEditDuration(session.duration_minutes);
+    setEditPlayers([...session.players]);
+  };
+
+  const updateEditPlayer = (playerId: string, field: 'score' | 'player_name', value: any) => {
+    setEditPlayers(editPlayers.map(p => 
+      p.id === playerId ? { ...p, [field]: value } : p
+    ));
+  };
+
+  const calculateEditPositions = () => {
+    const sorted = [...editPlayers].sort((a, b) => b.score - a.score);
+    const updated = editPlayers.map(player => {
+      const position = sorted.findIndex(p => p.id === player.id) + 1;
+      const isWinner = position === 1;
+      return { ...player, position, is_winner: isWinner };
+    });
+    setEditPlayers(updated);
   };
 
   const saveEditSession = async () => {
     if (!editingSession) return;
 
     try {
-      const { error } = await supabase
+      // Update session details
+      const { error: sessionError } = await supabase
         .from('game_sessions')
         .update({
           notes: editNotes.trim() || null,
@@ -226,7 +252,22 @@ const StatsAndSessions = () => {
         })
         .eq('id', editingSession.id);
 
-      if (error) throw error;
+      if (sessionError) throw sessionError;
+
+      // Update players
+      for (const player of editPlayers) {
+        const { error: playerError } = await supabase
+          .from('game_session_players')
+          .update({
+            player_name: player.player_name,
+            score: player.score,
+            position: player.position,
+            is_winner: player.is_winner,
+          })
+          .eq('id', player.id);
+
+        if (playerError) throw playerError;
+      }
 
       toast({
         title: "Partie modifiée",
@@ -235,6 +276,7 @@ const StatsAndSessions = () => {
 
       setEditingSession(null);
       loadUserSessions();
+      loadUserStats();
     } catch (error: any) {
       console.error('Error updating session:', error);
       toast({
@@ -521,6 +563,36 @@ const StatsAndSessions = () => {
                 value={editNotes}
                 onChange={(e) => setEditNotes(e.target.value)}
               />
+            </div>
+            <div>
+              <Label>Joueurs et scores</Label>
+              <div className="space-y-2 mt-2">
+                {editPlayers.map((player, index) => (
+                  <div key={player.id} className="flex items-center space-x-2">
+                    <Input
+                      placeholder={`Joueur ${index + 1}`}
+                      value={player.player_name}
+                      onChange={(e) => updateEditPlayer(player.id, 'player_name', e.target.value)}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Score"
+                      value={player.score || ''}
+                      onChange={(e) => updateEditPlayer(player.id, 'score', parseInt(e.target.value) || 0)}
+                      className="w-24"
+                    />
+                    {player.is_winner && (
+                      <Trophy size={20} className="text-yellow-500" />
+                    )}
+                    {player.is_session_owner && (
+                      <span className="text-xs text-muted-foreground">👤</span>
+                    )}
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={calculateEditPositions}>
+                  Recalculer les positions
+                </Button>
+              </div>
             </div>
             <div className="flex justify-end space-x-2">
               <Button variant="outline" onClick={() => setEditingSession(null)}>
